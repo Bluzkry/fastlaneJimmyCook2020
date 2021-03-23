@@ -1,0 +1,42 @@
+# before_all do
+#   ensure_git_branch
+#   ensure_git_status_clean
+#   git_pull
+# end
+
+platform :android do
+  desc "Android build and release to beta"
+
+  lane :beta do
+    store_password = prompt(text: "Signing Store Password: ", secure_text: true)
+    key_password = prompt(text: "Alias Key Password: ", secure_text: true)
+    releaseFilePath = File.join(Dir.pwd, "../android/", "fastlaneJimmyCook2020-keystore.jks")
+
+    android_set_version_code(gradle_file: "./android/app/build.gradle")
+
+    gradle(task: 'clean', project_dir: './android/')
+
+    gradle(
+      task: 'bundle',
+      build_type: 'Release',
+      project_dir: './android',
+      properties: {
+      "android.injected.signing.store.file" => releaseFilePath,
+      "android.injected.signing.store.password" => store_password,
+      "android.injected.signing.key.alias" => "key0",
+      "android.injected.signing.key.password" => key_password,
+      }
+    )
+
+    supply(
+      package_name: 'com.fastlanejimmycook2020',
+      track: 'beta',
+      aab: './android/app/build/outputs/bundle/release/app-release.aab',
+      skip_upload_apk: true,
+      skip_upload_metadata: true,
+      skip_upload_changelogs: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+    )
+  end
+end
