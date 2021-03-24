@@ -1,8 +1,55 @@
-# before_all do
-#   ensure_git_branch
-#   ensure_git_status_clean
-#   git_pull
-# end
+before_all do
+  ensure_git_branch
+  ensure_git_status_clean
+  git_pull
+end
+
+platform :ios do
+  private_lane :update_version do
+    app_store_version = get_app_store_version_number(bundle_id: 'org.reactjs.native.example.fastlaneJimmyCook2020')
+    plist_version = get_version_number_from_plist(xcodeproj: './ios/fastlaneJimmyCook2020.xcodeproj')
+    if Gem::Version.new(plist_version.to_f) == Gem::Version.new(app_store_version.to_f)
+      UI.message "bumping minor"
+      increment_version_number_in_plist(xcodeproj: './ios/fastlaneJimmyCook2020.xcodeproj', bump_type: 'minor')
+    else
+      UI.message "bumping patch"
+      increment_version_number_in_plist(xcodeproj: './ios/fastlaneJimmyCook2020.xcodeproj', bump_type: 'patch')
+    end
+  end
+
+  private_lane :staging_build do
+    increment_build_number_in_plist(xcodeproj: './ios/fastlaneJimmyCook2020.xcodeproj', target: 'fastlaneJimmyCook2020')
+    gym(scheme: 'fastlaneJimmyCook2020-staging', workspace: './ios/fastlaneJimmyCook2020.xcworkspace')
+  end
+
+  private_lane :release_build do
+    increment_build_number_in_plist(xcodeproj: './ios/fastlaneJimmyCook2020.xcodeproj', target: 'fastlaneJimmyCook2020')
+    gym(scheme: 'fastlaneJimmyCook2020-release', workspace: './ios/fastlaneJimmyCook2020.xcworkspace')
+  end
+
+  private_lane :screenshots do
+    Dir.chdir('..') do
+      # run in parent directory
+      sh('detox', 'build -c ios')
+      sh('detox', 'test -c ios')
+    end
+  end
+
+  lane :beta do
+    staging_build
+    upload_to_testflight(username: 'zou.alexander@gmail.com', app_identifier: 'fastlaneJimmyCook2020')
+    commit_version_bump(message: 'bump build')
+    push_to_git_remote
+  end
+
+  lane :release do
+    release_build
+    screenshots
+    deliver
+    commit_version_bump(message: 'bump build')
+    push_to_git_remote
+  end
+end
 
 platform :android do
   desc "Android build and release to beta"
@@ -32,6 +79,41 @@ platform :android do
       package_name: 'com.fastlanejimmycook2020',
       track: 'beta',
       aab: './android/app/build/outputs/bundle/release/app-release.aab',
+      skip_upload_apk: true,
+      skip_upload_metadata: true,
+      skip_upload_changelogs: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+    )
+  end
+
+  lane :release do
+    store_password = prompt(text: "Signing Store Password: ", secure_text: true)
+    key_password = prompt(text: "Alias Key Password: ", secure_text: true)
+    releaseFilePath = File.join(Dir.pwd, "../android/", "fastlaneJimmyCook2020-keystore.jks")
+
+    android_set_version_code(gradle_file: "./android/app/build.gradle")
+    android_set_version_name(gradle_file: "./android/app/build.gradle")
+
+    gradle(task: 'clean', project_dir: './android/')
+
+    gradle(
+      task: 'bundle',
+      build_type: 'Release',
+      project_dir: './android',
+      properties: {
+        "android.injected.signing.store.file" => releaseFilePath,
+        "android.injected.signing.store.password" => store_password,
+        "android.injected.signing.key.alias" => "key0",
+        "android.injected.signing.key.password" => key_password,
+      }
+    )
+
+    supply(
+      package_name: 'com.fastlanejimmycook2020',
+      track: 'production',
+      aab: './android/app/build/outputs/bundle/release/app-release.aab',
+      release_status: 'draft',
       skip_upload_apk: true,
       skip_upload_metadata: true,
       skip_upload_changelogs: true,

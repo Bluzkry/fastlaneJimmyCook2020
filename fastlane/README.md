@@ -15,12 +15,31 @@ Install _fastlane_ using
 or alternatively using `brew install fastlane`
 
 # Available Actions
+## iOS
+### ios beta
+```
+fastlane ios beta
+```
+
+### ios release
+```
+fastlane ios release
+```
+
+
+----
+
 ## Android
 ### android beta
 ```
 fastlane android beta
 ```
 Android build and release to beta
+### android release
+```
+fastlane android release
+```
+
 
 ----
 
